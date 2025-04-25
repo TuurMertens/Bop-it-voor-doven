@@ -1,6 +1,6 @@
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
 #include <Wire.h>
-#include <MPU6050.h>
-MPU6050 mpu;
 
 int pullButton_pin = 2;
 int twistButton_pin = 3;
@@ -10,8 +10,7 @@ int Level = 1; //Om de 5 scores +1
 int prevLevel = 1;
 int speedTime = 2000;
  
-const int shakeThreshold = 15000; //Treshold Bob-it
-int shakeStrength = abs(ax) + abs(ay) + abs(az);
+const int shakeThreshold = 25; //Treshold Bob-it
 
 void setup() {
   Serial.begin(115200);
@@ -19,20 +18,24 @@ void setup() {
   pinMode(pullButton_pin, INPUT_PULLDOWN);
   pinMode(twistButton_pin, INPUT_PULLDOWN);
 
-  Wire.begin(); //Gyroscoop setup, zie Tutorial
-  mpu.initialize();
-  if (!mpu.testConnection()) {
-      Serial.println("MPU6050 connection failed!");
-      while (1);
-  }
+//Setup Gyroscoop 
+  while (!Serial) 
+    delay(10); 
 
+  Serial.println("Adafruit MPU6050 test!");
+
+  // Try to initialize!
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
 
 }
 
 void loop() {
-
-  int16_t ax, ay, az, gx, gy, gz; //Gyroscoop assen
-  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
   if (Score == 5){ //Level system
     Level = prevLevel + 1;
@@ -40,7 +43,17 @@ void loop() {
     Score = 0;
   }
 
+  sensors_event_t a, g, temp; //Get gyro info
+  mpu.getEvent(&a, &g, &temp);
 
+ int shakeStrength = (int)sqrt(
+    a.acceleration.x * a.acceleration.x +
+    a.acceleration.y * a.acceleration.y +
+    a.acceleration.z * a.acceleration.z
+);
+
+//start
+  if 
 }
 
 void pullFunction(){
@@ -66,6 +79,7 @@ void trilFunction(){
 
 void startFunction(){
   //Shake om te (her)beginnen?
+
 }
 
 void endFunction(){
