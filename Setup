@@ -1,0 +1,73 @@
+#include <Wire.h>
+#include <MPU6050.h>
+MPU6050 mpu;
+
+int pullButton_pin = 2;
+int twistButton_pin = 3;
+
+int Score = 0; //elk juiste +1
+int Level = 1; //Om de 5 scores +1
+int prevLevel = 1;
+int speedTime = 2000;
+ 
+const int shakeThreshold = 15000; //Treshold Bob-it
+int shakeStrength = abs(ax) + abs(ay) + abs(az);
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(pullButton_pin, INPUT_PULLDOWN);
+  pinMode(twistButton_pin, INPUT_PULLDOWN);
+
+  Wire.begin(); //Gyroscoop setup, zie Tutorial
+  mpu.initialize();
+  if (!mpu.testConnection()) {
+      Serial.println("MPU6050 connection failed!");
+      while (1);
+  }
+
+
+}
+
+void loop() {
+
+  int16_t ax, ay, az, gx, gy, gz; //Gyroscoop assen
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+  if (Score == 5){ //Level system
+    Level = prevLevel + 1;
+    prevLevel = Level;
+    Score = 0;
+  }
+
+
+}
+
+void pullFunction(){
+  //buttoncheck, switch statement met alle opties
+  //juist => score +1 en speedTimer na 5 keer -bv.300, fout of timer verloopt => endFunction
+}
+
+void twistFunction(){
+  //buttoncheck, switch statement met alle opties
+  //juist => score +1 en speedTimer na 5 keer -bv.300, fout of timer verloopt => endFunction
+}
+
+void bobFunction(){
+  //Gyroscoop check, switch statement met alle opties
+  //juist => score +1 en speedTimer na 5 keer -bv.300, fout of timer verloopt => endFunction
+
+  switch  
+}
+
+void trilFunction(){
+  //trilling sequence
+}
+
+void startFunction(){
+  //Shake om te (her)beginnen?
+}
+
+void endFunction(){
+  //neopixel counter
+}
