@@ -1,0 +1,128 @@
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+
+Adafruit_MPU6050 mpu;
+
+const int twistPin = 2;
+const int pullPin = 3;
+
+int caseCheckup = 0;
+unsigned long prevTime = 0;
+const int gameTime = 4000;
+const int shakeTreshhold = 25;
+
+int pullState = LOW;
+int lastpullState = LOW;
+unsigned long lastpullDebounceTime = 0;
+
+int twistState = LOW;
+int lasttwistState = LOW;
+unsigned long lasttwistDebounceTime = 0;
+
+unsigned long debounceDelay = 50;
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial)
+    delay(10); // will pause Zero, Leonardo, etc until serial console opens
+
+  Serial.println("Adafruit MPU6050 test!");
+
+  // Try to initialize!
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+  Serial.println("MPU6050 Found!");
+
+  pinMode(twistPin, INPUT_PULLUP);
+  pinMode(pullPin, INPUT_PULLUP);
+}
+
+void loop() {
+ 
+  bobCheck();
+  twistCheck();
+  pullCheck();
+  timeCheck();
+
+  if(caseCheckup != 0){
+    switch(caseCheckup){
+      case 1:
+      // Function1();
+      Serial.println("Bob");
+      break;
+      case 2:
+      // Function2();
+      Serial.println("Twist");
+      break;
+      case 3:
+      // Function2();
+      Serial.println("Pull");
+      break;
+      case 4:
+      // Function2();
+      Serial.println("Time");
+      break;
+    } 
+      caseCheckup = 0;              // Reset for next input
+      prevTime = millis();          // Reset the game timer
+  }
+}
+
+
+void bobCheck(){
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  int Totalacc = (int)sqrt(
+    a.acceleration.x * a.acceleration.x +
+    a.acceleration.y * a.acceleration.y +
+    a.acceleration.z * a.acceleration.z
+  );
+  if(Totalacc >= shakeTreshhold){
+    caseCheckup = 1;
+  }
+}
+
+void twistCheck(){
+
+  if (digitalRead(twistPin) != lasttwistState) {
+    lasttwistDebounceTime = millis();
+  }
+
+  if ((millis() - lasttwistDebounceTime) > debounceDelay) {
+    if (digitalRead(twistPin) != twistState) {
+      twistState = digitalRead(twistPin);
+
+      if (twistState == LOW) { 
+        caseCheckup = 2;
+      }
+    }
+  }
+}
+
+void pullCheck(){
+
+  if (digitalRead(pullPin) != lastpullState) {
+    lastpullDebounceTime = millis();
+  }
+
+  if ((millis() - lastpullDebounceTime) > debounceDelay) {
+    if (digitalRead(pullPin) != pullState) {
+      pullState = digitalRead(pullPin);
+
+      if (pullState == LOW) { 
+        caseCheckup = 3;
+      }
+    }
+  }
+}
+
+void timeCheck(){
+  if(millis() - prevTime > gameTime){
+    caseCheckup = 4;
+  }
+}
