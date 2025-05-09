@@ -2,25 +2,35 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 
-int pullButton_pin = 2;
-int twistButton_pin = 3;
+Adafruit_MPU6050 mpu;
 
-int Score = 0; //elk juiste +1
-int Level = 1; //Om de 5 scores +1
-int prevLevel = 1;
-int speedTime = 2000;
- 
-const int shakeThreshold = 25; //Treshold Bob-it
+const int twistPin = 2;
+const int pullPin = 3;
+const int resetPin = 4;
+
+int score = 0;
+int Random = 1;
+int caseCheckup = 0;
+
+unsigned long prevTime = 0;
+int gameTime = 4000;
+const int timePenalty = 300;
+const int shakeTreshhold = 25;
+
+int pullState = LOW;
+int lastpullState = LOW;
+unsigned long lastpullDebounceTime = 0;
+
+int twistState = LOW;
+int lasttwistState = LOW;
+unsigned long lasttwistDebounceTime = 0;
+
+unsigned long debounceDelay = 0;
 
 void setup() {
   Serial.begin(115200);
-
-  pinMode(pullButton_pin, INPUT_PULLDOWN);
-  pinMode(twistButton_pin, INPUT_PULLDOWN);
-
-//Setup Gyroscoop 
-  while (!Serial) 
-    delay(10); 
+  while (!Serial)
+    delay(10); // will pause Zero, Leonardo, etc until serial console opens
 
   Serial.println("Adafruit MPU6050 test!");
 
@@ -33,55 +43,173 @@ void setup() {
   }
   Serial.println("MPU6050 Found!");
 
+  pinMode(twistPin, INPUT_PULLUP);
+  pinMode(pullPin, INPUT_PULLUP);
+  pinMode(resetPin, OUTPUT);
+  digitalWrite(resetPin, HIGH);
+
+  startGame();
 }
 
 void loop() {
+ 
+  bobCheck();
+  twistCheck();
+  pullCheck();
+  timeCheck();
 
-  if (Score == 5){ //Level system
-    Level = prevLevel + 1;
-    prevLevel = Level;
-    Score = 0;
+  if(caseCheckup != 0){
+    switch(caseCheckup){
+      case 1:
+      switch(Random){
+        case 1:
+          score++;
+          if(score % 5 == 0){
+            gameTime = gameTime - timePenalty;
+          }
+          Serial.println("Bob Juist");
+          delay(200);
+        break;
+
+        case 2:
+          endGame();
+        break;
+
+        case 3:
+          endGame();
+        break;
+      }
+      break;
+
+      case 2:
+      switch(Random){
+        case 2:
+          score++;
+          if(score % 5 == 0){
+            gameTime = gameTime - timePenalty;
+          }
+          Serial.println("Twist Juist");
+        break;
+
+        case 1:
+          endGame();
+        break;
+
+        case 3:
+          endGame();
+        break;
+      }
+      break;
+
+      case 3:
+      switch(Random){
+        case 3:
+          score++;
+          if(score % 5 == 0){
+            gameTime = gameTime - timePenalty;
+          }
+          Serial.println("Pull Juist");
+        break;
+
+        case 2:
+          endGame();
+        break;
+
+        case 1:
+          endGame();
+        break;
+      }
+      break;
+
+      case 4:
+      Serial.println("Timer over");
+      endGame();
+      break;
+    } 
+
+      caseCheckup = 0;              // Reset for next input
+      prevTime = millis();          // Reset the game timer
+      Random = random(1,4);
+
+      switch(Random){
+        case 1:
+          Serial.println("Bob-it");
+        break;
+
+        case 2:
+          Serial.println("Twist-it");
+        break;
+
+        case 3:
+          Serial.println("Pull-it");
+        break;
+      }
   }
+}
 
-  sensors_event_t a, g, temp; //Get gyro info
+
+void bobCheck(){
+  sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
-
- int shakeStrength = (int)sqrt(
+  int Totalacc = (int)sqrt(
     a.acceleration.x * a.acceleration.x +
     a.acceleration.y * a.acceleration.y +
     a.acceleration.z * a.acceleration.z
-);
-
-//start
-  if 
+  );
+  if(Totalacc >= shakeTreshhold){
+    caseCheckup = 1;
+  }
 }
 
-void pullFunction(){
-  //buttoncheck, switch statement met alle opties
-  //juist => score +1 en speedTimer na 5 keer -bv.300, fout of timer verloopt => endFunction
+void twistCheck(){
+
+  if (digitalRead(twistPin) != lasttwistState) {
+    lasttwistDebounceTime = millis();
+  }
+
+  if ((millis() - lasttwistDebounceTime) > debounceDelay) {
+    if (digitalRead(twistPin) != twistState) {
+      twistState = digitalRead(twistPin);
+
+      if (twistState == LOW) { 
+        caseCheckup = 2;
+      }
+    }
+  }
 }
 
-void twistFunction(){
-  //buttoncheck, switch statement met alle opties
-  //juist => score +1 en speedTimer na 5 keer -bv.300, fout of timer verloopt => endFunction
+void pullCheck(){
+
+  if (digitalRead(pullPin) != lastpullState) {
+    lastpullDebounceTime = millis();
+  }
+
+  if ((millis() - lastpullDebounceTime) > debounceDelay) {
+    if (digitalRead(pullPin) != pullState) {
+      pullState = digitalRead(pullPin);
+
+      if (pullState == LOW) { 
+        caseCheckup = 3;
+      }
+    }
+  }
 }
 
-void bobFunction(){
-  //Gyroscoop check, switch statement met alle opties
-  //juist => score +1 en speedTimer na 5 keer -bv.300, fout of timer verloopt => endFunction
-
-  switch  
+void timeCheck(){
+  if(millis() - prevTime > gameTime){
+    caseCheckup = 4;
+  }
 }
 
-void trilFunction(){
-  //trilling sequence
+void startGame(){
+  Serial.println("Start");
+  Serial.println("Bob-it");
 }
 
-void startFunction(){
-  //Shake om te (her)beginnen?
+void endGame(){
+  Serial.println("Loser");
+  Serial.println(score);
 
-}
-
-void endFunction(){
-  //neopixel counter
+  delay(5000);                   //Reset after 5sec.
+  digitalWrite(resetPin, LOW);
 }
