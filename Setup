@@ -138,7 +138,7 @@ void loop() {
     } 
 
       clearLed();
-      delay(200);
+      delay(400);
       caseCheckup = 0;              // Reset for next input
       prevTime = millis();          // Reset the game timer
       Random = random(1,4);
@@ -194,36 +194,18 @@ void bobCheck(){
 
 void twistCheck(){
 
-  if (digitalRead(twistPin) != lasttwistState) {
-    lasttwistDebounceTime = millis();
+  if(digitalRead(twistPin) == LOW){
+    caseCheckup = 2;
   }
 
-  if ((millis() - lasttwistDebounceTime) > debounceDelay) {
-    if (digitalRead(twistPin) != twistState) {
-      twistState = digitalRead(twistPin);
-
-      if (twistState == LOW) { 
-        caseCheckup = 2;
-      }
-    }
-  }
 }
 
 void pullCheck(){
 
-  if (digitalRead(pullPin) != lastpullState) {
-    lastpullDebounceTime = millis();
+  if(digitalRead(pullPin) == LOW){
+    caseCheckup = 3;
   }
 
-  if ((millis() - lastpullDebounceTime) > debounceDelay) {
-    if (digitalRead(pullPin) != pullState) {
-      pullState = digitalRead(pullPin);
-
-      if (pullState == LOW) { 
-        caseCheckup = 3;
-      }
-    }
-  }
 }
 
 void timeCheck(){
