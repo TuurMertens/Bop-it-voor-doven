@@ -1,12 +1,17 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+#include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 
-Adafruit_MPU6050 mpu;
+#define LED_PIN    5         // The data pin connected to the NeoPixel ring
+#define LED_COUNT  12        // Total number of NeoPixels leds
 
 const int twistPin = 2;
 const int pullPin = 3;
 const int resetPin = 4;
+
+Adafruit_NeoPixel ring(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_MPU6050 mpu;
 
 int score = 0;
 int Random = 1;
@@ -15,7 +20,7 @@ int caseCheckup = 0;
 unsigned long prevTime = 0;
 int gameTime = 4000;
 const int timePenalty = 300;
-const int shakeTreshhold = 25;
+const int shakeTreshhold = 30;
 
 int pullState = LOW;
 int lastpullState = LOW;
@@ -29,6 +34,7 @@ unsigned long debounceDelay = 0;
 
 void setup() {
   Serial.begin(115200);
+
   while (!Serial)
     delay(10); // will pause Zero, Leonardo, etc until serial console opens
 
@@ -42,6 +48,10 @@ void setup() {
     }
   }
   Serial.println("MPU6050 Found!");
+
+  ring.begin();           // Initialize the NeoPixel ring
+  ring.show();            // Turn off all pixels initially
+  ring.setBrightness(50);
 
   pinMode(twistPin, INPUT_PULLUP);
   pinMode(pullPin, INPUT_PULLUP);
@@ -67,8 +77,7 @@ void loop() {
           if(score % 5 == 0){
             gameTime = gameTime - timePenalty;
           }
-          Serial.println("Bob Juist");
-          delay(200);
+          Serial.println("Bob Right");
         break;
 
         case 2:
@@ -88,7 +97,7 @@ void loop() {
           if(score % 5 == 0){
             gameTime = gameTime - timePenalty;
           }
-          Serial.println("Twist Juist");
+          Serial.println("Twist Right");
         break;
 
         case 1:
@@ -108,7 +117,7 @@ void loop() {
           if(score % 5 == 0){
             gameTime = gameTime - timePenalty;
           }
-          Serial.println("Pull Juist");
+          Serial.println("Pull Right");
         break;
 
         case 2:
@@ -125,28 +134,50 @@ void loop() {
       Serial.println("Timer over");
       endGame();
       break;
+
     } 
 
+      clearLed();
+      delay(200);
       caseCheckup = 0;              // Reset for next input
       prevTime = millis();          // Reset the game timer
       Random = random(1,4);
 
       switch(Random){
         case 1:
+          bobLed();
           Serial.println("Bob-it");
         break;
 
         case 2:
+          twistLed();
           Serial.println("Twist-it");
         break;
 
         case 3:
+          pullLed();
           Serial.println("Pull-it");
         break;
       }
   }
 }
 
+//Setup functions
+
+void startGame(){
+  startAnimation();
+  bobLed();
+}
+
+void endGame(){
+  errorAnimation();
+  scoreLed();
+
+  delay(5000);              //Reset after 5sec.
+  digitalWrite(resetPin, LOW);
+}
+
+//Checkup functions
 
 void bobCheck(){
   sensors_event_t a, g, temp;
@@ -201,15 +232,84 @@ void timeCheck(){
   }
 }
 
-void startGame(){
-  Serial.println("Start");
-  Serial.println("Bob-it");
+//Neopixel functions
+
+void startAnimation() {
+  for (int cycle = 0; cycle < 2; cycle++) {  // Herhaal de animatie 2 keer
+    for (int i = 0; i < LED_COUNT; i++) {
+      // Regenboogkleur gebaseerd op de LED-index
+      uint32_t color = ring.ColorHSV((i * 65536L / LED_COUNT) + (cycle * 20000), 255, 255);
+      ring.setPixelColor(i, color);
+      ring.show();
+      delay(50);  // Vertraging tussen LED's voor een 'wipe'-effect
+    }
+    delay(300);  // Pauze na de eerste volledige animatie
+    clearLed();   // Zet alle LED's uit voordat de volgende cycle start
+  }
 }
 
-void endGame(){
-  Serial.println("Loser");
-  Serial.println(score);
+void errorAnimation() {
+for (int i = 0; i < 3; i++) {  // Herhaal de animatie 3 keer
+    for (int j = 0; j < LED_COUNT; j++) {
+      ring.setPixelColor(j, ring.Color(255, 0, 0));  // Zet LED op rood
+    }
+    ring.show();
+    delay(250);  // Houd rood aan voor 250ms
 
-  delay(5000);                   //Reset after 5sec.
-  digitalWrite(resetPin, LOW);
+    for (int j = 0; j < LED_COUNT; j++) {
+      ring.setPixelColor(j, 0);  // Zet LED uit
+    }
+    ring.show();
+    delay(250);  // Pauze tussen knipperingen
+  }
+}
+
+void scoreLed() {
+  clearLed();
+  int ledIndex = 0;
+
+// Rood voor 10 punten per LED
+  while (score >= 10 && ledIndex < LED_COUNT) {
+    ring.setPixelColor(ledIndex++, ring.Color(255, 0, 0));  // Rood
+    score -= 10;
+  }
+  // Blauw voor 5 punten per LED
+  while (score >= 5 && ledIndex < LED_COUNT) {
+    ring.setPixelColor(ledIndex++, ring.Color(0, 0, 255));  // Blauw
+    score -= 5;
+  }
+  // Groen voor 1 punt per LED
+  while (score >= 1 && ledIndex < LED_COUNT) {
+    ring.setPixelColor(ledIndex++, ring.Color(0, 255, 0));  // Groen
+    score -= 1;
+  }
+  ring.show();
+}
+
+void bobLed() {
+for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, ring.Color(255, 255, 255));  // Zet LED op wit
+  }
+  ring.show();  // Stuur de kleuren naar de ring
+}
+
+void twistLed() {
+for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, ring.Color(0, 0, 255));  // Zet LED op blauw
+  }
+  ring.show();  // Stuur de kleuren naar de ring
+}
+
+void pullLed() {
+for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, ring.Color(255, 255, 0));  // Zet LED  op geel
+  }
+  ring.show();  // Stuur de kleuren naar de ring
+}
+
+void clearLed() {
+  for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, 0);  // Zet LED uit
+  }
+  ring.show();  // Stuur de update naar de ring
 }
