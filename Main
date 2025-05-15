@@ -1,0 +1,295 @@
+// Include necessary libraries for MPU6050 sensor, NeoPixels, and I2C communication
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_NeoPixel.h>
+#include <Wire.h>
+
+// Define pin for the NeoPixel ring and the number of LEDs
+#define LED_PIN    5         // The data pin connected to the NeoPixel ring
+#define LED_COUNT  12        // Total number of NeoPixels LEDs
+
+// Define pin numbers for twist, pull, and reset actions
+const int twistPin = 2;
+const int pullPin = 3;
+const int resetPin = 4;
+
+// Create a NeoPixel ring object
+Adafruit_NeoPixel ring(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Create an MPU6050 sensor object
+Adafruit_MPU6050 mpu;
+
+// Game logic variables
+int score = 0;                // Current score
+int Random = 1;               // Random action selector
+int caseCheckup = 0;          // Used to store the current action taken
+
+// Timing and game control variables
+unsigned long prevTime = 0;  // Timestamp of the last action
+int gameTime = 4000;         // Time allowed for each action in milliseconds
+const int timePenalty = 300; // Amount to reduce gameTime every 5 points
+const int shakeTreshhold = 30; // Threshold for detecting shake (bob) action
+
+void setup() {
+  Serial.begin(115200);  // Start serial communication for debugging
+
+  while (!Serial)
+    delay(10); // Wait for serial monitor to open (for boards like Leonardo)
+
+  Serial.println("Adafruit MPU6050 test!");
+
+  // Initialize MPU6050 sensor
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10); // Stop if MPU6050 is not found
+    }
+  }
+  Serial.println("MPU6050 Found!");
+
+  ring.begin();           // Initialize the NeoPixel ring
+  ring.show();            // Turn off all LEDs initially
+  ring.setBrightness(50); // Set LED brightness to 50
+
+  // Set up input and output pins
+  pinMode(twistPin, INPUT_PULLUP);
+  pinMode(pullPin, INPUT_PULLUP);
+  pinMode(resetPin, OUTPUT);
+  digitalWrite(resetPin, HIGH); // Set resetPin HIGH to keep game running
+
+  startGame(); // Start the game with an animation and first prompt
+}
+
+void loop() {
+  // Continuously check for user inputs and time limits
+  bobCheck();     // Check for shake (bob-it) motion
+  twistCheck();   // Check for twist button press
+  pullCheck();    // Check for pull button press
+  timeCheck();    // Check if time has run out
+
+  // If an input has been detected or time is over
+  if (caseCheckup != 0) {
+    switch (caseCheckup) {
+      case 1: // Bob action
+        switch (Random) {
+          case 1: // Correct action
+            score++;
+            if (score % 5 == 0) {
+              gameTime -= timePenalty; // Increase difficulty
+            }
+            Serial.println("Bob Right");
+            break;
+          case 2: // Wrong action
+          case 3:
+            endGame(); // End the game
+            break;
+        }
+        break;
+
+      case 2: // Twist action
+        switch (Random) {
+          case 2:
+            score++;
+            if (score % 5 == 0) {
+              gameTime -= timePenalty;
+            }
+            Serial.println("Twist Right");
+            break;
+          case 1:
+          case 3:
+            endGame();
+            break;
+        }
+        break;
+
+      case 3: // Pull action
+        switch (Random) {
+          case 3:
+            score++;
+            if (score % 5 == 0) {
+              gameTime -= timePenalty;
+            }
+            Serial.println("Pull Right");
+            break;
+          case 2:
+          case 1:
+            endGame();
+            break;
+        }
+        break;
+
+      case 4: // Time ran out
+        Serial.println("Timer over");
+        endGame();
+        break;
+    }
+
+    clearLed();               // Turn off all LEDs
+    delay(400);               // Small delay before next prompt
+    caseCheckup = 0;          // Reset input checker
+    prevTime = millis();      // Restart timer
+    Random = random(1, 4);    // Pick a new random action
+
+    // Show the next action with LEDs and serial output
+    switch (Random) {
+      case 1:
+        bobLed();
+        Serial.println("Bob-it");
+        break;
+      case 2:
+        twistLed();
+        Serial.println("Twist-it");
+        break;
+      case 3:
+        pullLed();
+        Serial.println("Pull-it");
+        break;
+    }
+  }
+}
+
+// ========== Setup Functions ==========
+
+void startGame() {
+  startAnimation(); // Show startup animation
+  bobLed();         // Show the first action
+}
+
+void endGame() {
+  errorAnimation(); // Flash red LEDs to indicate game over
+  scoreLed();       // Show score visually using colored LEDs
+
+  delay(5000);      // Wait 5 seconds before resetting
+  digitalWrite(resetPin, LOW); // Trigger external reset mechanism
+}
+
+// ========== Checkup Functions ==========
+
+void bobCheck() {
+  // Get acceleration data
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  // Calculate the total acceleration magnitude
+  int Totalacc = (int)sqrt(
+    a.acceleration.x * a.acceleration.x +
+    a.acceleration.y * a.acceleration.y +
+    a.acceleration.z * a.acceleration.z
+  );
+
+  // If movement exceeds the threshold, trigger bob action
+  if (Totalacc >= shakeTreshhold) {
+    caseCheckup = 1;
+  }
+}
+
+void twistCheck() {
+  // If twist button is pressed, register twist action
+  if (digitalRead(twistPin) == LOW) {
+    caseCheckup = 2;
+  }
+}
+
+void pullCheck() {
+  // If pull button is pressed, register pull action
+  if (digitalRead(pullPin) == LOW) {
+    caseCheckup = 3;
+  }
+}
+
+void timeCheck() {
+  // If the time since last action exceeds allowed time, time out
+  if (millis() - prevTime > gameTime) {
+    caseCheckup = 4;
+  }
+}
+
+// ========== NeoPixel Display Functions ==========
+
+void startAnimation() {
+  // Show a rainbow wipe animation around the ring
+  for (int cycle = 0; cycle < 2; cycle++) {
+    for (int i = 0; i < LED_COUNT; i++) {
+      uint32_t color = ring.ColorHSV((i * 65536L / LED_COUNT) + (cycle * 20000), 255, 255);
+      ring.setPixelColor(i, color);
+      ring.show();
+      delay(50); // Delay for wipe effect
+    }
+    delay(300);  // Pause between animation cycles
+    clearLed();  // Turn off LEDs before next cycle
+  }
+}
+
+void errorAnimation() {
+  // Flash red LEDs 3 times
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < LED_COUNT; j++) {
+      ring.setPixelColor(j, ring.Color(255, 0, 0)); // Red
+    }
+    ring.show();
+    delay(250);
+
+    for (int j = 0; j < LED_COUNT; j++) {
+      ring.setPixelColor(j, 0); // Off
+    }
+    ring.show();
+    delay(250);
+  }
+}
+
+void scoreLed() {
+  clearLed();
+  int ledIndex = 0;
+
+  // Display red LEDs for every 10 points
+  while (score >= 10 && ledIndex < LED_COUNT) {
+    ring.setPixelColor(ledIndex++, ring.Color(255, 0, 0));
+    score -= 10;
+  }
+
+  // Blue for 5 points
+  while (score >= 5 && ledIndex < LED_COUNT) {
+    ring.setPixelColor(ledIndex++, ring.Color(0, 0, 255));
+    score -= 5;
+  }
+
+  // Green for 1 point
+  while (score >= 1 && ledIndex < LED_COUNT) {
+    ring.setPixelColor(ledIndex++, ring.Color(0, 255, 0));
+    score -= 1;
+  }
+
+  ring.show(); // Display the score on the ring
+}
+
+void bobLed() {
+  // Set all LEDs to white (bob prompt)
+  for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, ring.Color(255, 255, 255));
+  }
+  ring.show();
+}
+
+void twistLed() {
+  // Set all LEDs to blue (twist prompt)
+  for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, ring.Color(0, 0, 255));
+  }
+  ring.show();
+}
+
+void pullLed() {
+  // Set all LEDs to yellow (pull prompt)
+  for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, ring.Color(255, 255, 0));
+  }
+  ring.show();
+}
+
+void clearLed() {
+  // Turn off all LEDs
+  for (int i = 0; i < LED_COUNT; i++) {
+    ring.setPixelColor(i, 0);
+  }
+  ring.show();
+}
