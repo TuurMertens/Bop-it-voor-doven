@@ -1,0 +1,17 @@
+const int twistPin = 2;
+const int pullPin = 3;
+
+void setup() {
+Serial.begin(115200);
+pinMode(pullPin, INPUT_PULLUP);
+pinMode(twistPin, INPUT);
+
+}
+
+void loop() {
+delay(500);
+Serial.print("twistpin");
+Serial.print(digitalRead(twistPin));
+Serial.print("||| pullpin");
+Serial.println(digitalRead(pullPin));
+}
